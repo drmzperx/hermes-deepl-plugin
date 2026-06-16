@@ -212,3 +212,48 @@ def test_register_wires_both_tools():
         assert t["toolset"] == "deepl"
         assert callable(t["handler"])
         assert t["schema"]["name"] == t["name"]
+
+
+import pytest  # noqa: E402
+
+
+def test_translate_handler_batch(monkeypatch):
+    _set_key(monkeypatch)
+    captured = {}
+
+    def fake(**kw):
+        captured.update(kw)
+        return {"translations": [
+            {"detected_source_lang": "EN", "text": "Szia"},
+            {"detected_source_lang": "EN", "text": "Vilag"},
+        ]}
+
+    monkeypatch.setattr(deepl_client, "translate", fake)
+    out = json.loads(tools.translate({"text": ["Hello", "World"], "target_lang": "HU"}))
+    assert captured["texts"] == ["Hello", "World"]
+    assert [t["text"] for t in out["translations"]] == ["Szia", "Vilag"]
+
+
+def test_translate_handler_empty_list(monkeypatch):
+    _set_key(monkeypatch)
+    out = json.loads(tools.translate({"text": [], "target_lang": "HU"}))
+    assert out["status"] == 0
+    assert "text" in out["error"]
+
+
+@pytest.mark.parametrize("status,needle", [
+    (403, "key"),
+    (429, "rate limit"),
+    (400, "Bad request"),
+    (500, "500"),
+])
+def test_translate_handler_error_mapping(monkeypatch, status, needle):
+    _set_key(monkeypatch)
+
+    def boom(**kw):
+        raise deepl_client.DeepLError(status, "detail")
+
+    monkeypatch.setattr(deepl_client, "translate", boom)
+    out = json.loads(tools.translate({"text": "Hello", "target_lang": "HU"}))
+    assert out["status"] == status
+    assert needle.lower() in out["error"].lower()
