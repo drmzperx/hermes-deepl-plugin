@@ -85,3 +85,24 @@ def test_usage_calls_get(monkeypatch):
     monkeypatch.setattr(deepl_client, "_get", fake_get)
     result = deepl_client.usage(key="k")
     assert result["character_count"] == 100
+
+
+from deepl import schemas  # noqa: E402
+
+
+def test_translate_schema_shape():
+    s = schemas.TRANSLATE
+    assert s["name"] == "translate"
+    assert "description" in s and s["description"]
+    params = s["parameters"]
+    assert params["type"] == "object"
+    assert "target_lang" in params["required"]
+    # text accepts a string OR an array of strings
+    assert "oneOf" in params["properties"]["text"]
+
+
+def test_usage_schema_shape():
+    s = schemas.DEEPL_USAGE
+    assert s["name"] == "deepl_usage"
+    assert s["parameters"]["type"] == "object"
+    assert s["parameters"].get("properties", {}) == {}
