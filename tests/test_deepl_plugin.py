@@ -257,3 +257,32 @@ def test_translate_handler_error_mapping(monkeypatch, status, needle):
     out = json.loads(tools.translate({"text": "Hello", "target_lang": "HU"}))
     assert out["status"] == status
     assert needle.lower() in out["error"].lower()
+
+
+def test_endpoint_rejects_non_http_override():
+    with pytest.raises(ValueError):
+        deepl_client.endpoint_for_key("k", "file:///etc/passwd")
+
+
+def test_translate_handler_uses_api_url_override(monkeypatch):
+    _set_key(monkeypatch)
+    monkeypatch.setenv("DEEPL_API_URL", "http://localhost:1234/v2")
+    captured = {}
+    monkeypatch.setattr(
+        deepl_client, "translate",
+        lambda **kw: captured.update(kw) or {"translations": []},
+    )
+    tools.translate({"text": "Hi", "target_lang": "HU"})
+    assert captured["base_url"] == "http://localhost:1234/v2"
+
+
+def test_usage_handler_uses_api_url_override(monkeypatch):
+    _set_key(monkeypatch)
+    monkeypatch.setenv("DEEPL_API_URL", "http://localhost:1234/v2")
+    captured = {}
+    monkeypatch.setattr(
+        deepl_client, "usage",
+        lambda **kw: captured.update(kw) or {"character_count": 0, "character_limit": 0},
+    )
+    tools.deepl_usage({})
+    assert captured["base_url"] == "http://localhost:1234/v2"

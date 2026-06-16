@@ -74,6 +74,7 @@ def translate(args: dict, **kwargs) -> str:
             source_lang=(args.get("source_lang") or None),
             formality=formality,
             preserve_formatting=args.get("preserve_formatting"),
+            base_url=(os.environ.get("DEEPL_API_URL") or None),
         )
 
         translations = [
@@ -98,7 +99,7 @@ def deepl_usage(args: dict, **kwargs) -> str:
         key = _key()
         if not key:
             return _err(0, "DEEPL_API_KEY not set")
-        result = deepl_client.usage(key=key)
+        result = deepl_client.usage(key=key, base_url=(os.environ.get("DEEPL_API_URL") or None))
         count = int(result.get("character_count", 0))
         limit = int(result.get("character_limit", 0))
         percent = round(100.0 * count / limit, 2) if limit else 0.0

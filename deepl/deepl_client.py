@@ -28,6 +28,8 @@ class DeepLError(Exception):
 def endpoint_for_key(key: str, override: str | None = None) -> str:
     """Pick the DeepL base URL. Override wins; else Free if key ends in ':fx'."""
     if override:
+        if urllib.parse.urlparse(override).scheme not in ("http", "https"):
+            raise ValueError("DEEPL_API_URL override must be an http(s) URL")
         return override.rstrip("/")
     if key and key.strip().endswith(":fx"):
         return FREE_URL
@@ -52,7 +54,7 @@ def _read(req: urllib.request.Request, timeout: float) -> dict:
         raise DeepLError(0, str(exc))
 
 
-def _post_form(url: str, fields: list, key: str, timeout: float) -> dict:
+def _post_form(url: str, fields: list[tuple[str, str]], key: str, timeout: float) -> dict:
     data = urllib.parse.urlencode(fields).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST")
     req.add_header("Authorization", f"DeepL-Auth-Key {key}")
