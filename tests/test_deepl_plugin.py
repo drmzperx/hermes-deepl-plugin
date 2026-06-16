@@ -24,3 +24,64 @@ def test_deepl_error_attrs():
     err = deepl_client.DeepLError(456, "quota")
     assert err.status == 456
     assert err.message == "quota"
+
+
+def test_translate_single_builds_request(monkeypatch):
+    captured = {}
+
+    def fake_post(url, fields, key, timeout):
+        captured["url"] = url
+        captured["fields"] = fields
+        captured["key"] = key
+        return {"translations": [{"detected_source_lang": "EN", "text": "Szia"}]}
+
+    monkeypatch.setattr(deepl_client, "_post_form", fake_post)
+    result = deepl_client.translate(key="k:fx", texts=["Hello"], target_lang="HU")
+
+    assert captured["url"] == "https://api-free.deepl.com/v2/translate"
+    assert ("target_lang", "HU") in captured["fields"]
+    assert ("text", "Hello") in captured["fields"]
+    assert captured["key"] == "k:fx"
+    assert result["translations"][0]["text"] == "Szia"
+
+
+def test_translate_batch_repeats_text_fields(monkeypatch):
+    captured = {}
+
+    def fake_post(url, fields, key, timeout):
+        captured["fields"] = fields
+        return {"translations": []}
+
+    monkeypatch.setattr(deepl_client, "_post_form", fake_post)
+    deepl_client.translate(key="k", texts=["one", "two"], target_lang="HU")
+
+    text_values = [v for (k, v) in captured["fields"] if k == "text"]
+    assert text_values == ["one", "two"]
+
+
+def test_translate_optional_fields(monkeypatch):
+    captured = {}
+
+    def fake_post(url, fields, key, timeout):
+        captured["fields"] = fields
+        return {"translations": []}
+
+    monkeypatch.setattr(deepl_client, "_post_form", fake_post)
+    deepl_client.translate(
+        key="k", texts=["x"], target_lang="DE",
+        source_lang="EN", formality="more", preserve_formatting=True,
+    )
+    fields = dict(captured["fields"])
+    assert fields["source_lang"] == "EN"
+    assert fields["formality"] == "more"
+    assert fields["preserve_formatting"] == "1"
+
+
+def test_usage_calls_get(monkeypatch):
+    def fake_get(url, key, timeout):
+        assert url == "https://api.deepl.com/v2/usage"
+        return {"character_count": 100, "character_limit": 500000}
+
+    monkeypatch.setattr(deepl_client, "_get", fake_get)
+    result = deepl_client.usage(key="k")
+    assert result["character_count"] == 100
