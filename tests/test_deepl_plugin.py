@@ -188,3 +188,27 @@ def test_usage_handler(monkeypatch):
     out = json.loads(tools.deepl_usage({}))
     assert out["character_count"] == 250000
     assert out["percent_used"] == 50.0
+
+
+import deepl as deepl_pkg  # noqa: E402
+
+
+class _FakeCtx:
+    def __init__(self):
+        self.tools = []
+
+    def register_tool(self, name, toolset, schema, handler):
+        self.tools.append(
+            {"name": name, "toolset": toolset, "schema": schema, "handler": handler}
+        )
+
+
+def test_register_wires_both_tools():
+    ctx = _FakeCtx()
+    deepl_pkg.register(ctx)
+    names = {t["name"] for t in ctx.tools}
+    assert names == {"translate", "deepl_usage"}
+    for t in ctx.tools:
+        assert t["toolset"] == "deepl"
+        assert callable(t["handler"])
+        assert t["schema"]["name"] == t["name"]

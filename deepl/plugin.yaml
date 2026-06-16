@@ -1,0 +1,12 @@
+name: deepl
+version: 1.0.0
+description: "DeepL machine translation for Hermes — high-quality Hungarian (and any-language) translate tool plus a usage/quota tool."
+author: "fabianattila83"
+provides_tools:
+  - translate
+  - deepl_usage
+requires_env:
+  - name: DEEPL_API_KEY
+    description: "DeepL API authentication key (Free keys end in ':fx'). Free or Pro both work."
+    url: "https://www.deepl.com/your-account/keys"
+    secret: true
