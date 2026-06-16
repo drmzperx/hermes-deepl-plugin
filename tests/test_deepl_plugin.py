@@ -106,3 +106,85 @@ def test_usage_schema_shape():
     assert s["name"] == "deepl_usage"
     assert s["parameters"]["type"] == "object"
     assert s["parameters"].get("properties", {}) == {}
+
+
+import json  # noqa: E402
+from deepl import tools  # noqa: E402
+
+
+def _set_key(monkeypatch, value="testkey"):
+    monkeypatch.setenv("DEEPL_API_KEY", value)
+
+
+def test_translate_handler_single(monkeypatch):
+    _set_key(monkeypatch)
+    monkeypatch.setattr(
+        deepl_client, "translate",
+        lambda **kw: {"translations": [{"detected_source_lang": "EN", "text": "Szia"}]},
+    )
+    out = json.loads(tools.translate({"text": "Hello", "target_lang": "HU"}))
+    assert out["translations"] == [{"text": "Szia", "detected_source_lang": "EN"}]
+    assert out["target_lang"] == "HU"
+    assert "notes" not in out
+
+
+def test_translate_handler_drops_formality_for_hu(monkeypatch):
+    _set_key(monkeypatch)
+    captured = {}
+    monkeypatch.setattr(
+        deepl_client, "translate",
+        lambda **kw: captured.update(kw) or {"translations": []},
+    )
+    out = json.loads(tools.translate(
+        {"text": "Hello", "target_lang": "HU", "formality": "more"}))
+    assert captured["formality"] is None
+    assert any("formality dropped" in n for n in out["notes"])
+
+
+def test_translate_handler_keeps_formality_for_de(monkeypatch):
+    _set_key(monkeypatch)
+    captured = {}
+    monkeypatch.setattr(
+        deepl_client, "translate",
+        lambda **kw: captured.update(kw) or {"translations": []},
+    )
+    json.loads(tools.translate(
+        {"text": "Hello", "target_lang": "DE", "formality": "more"}))
+    assert captured["formality"] == "more"
+
+
+def test_translate_handler_missing_key(monkeypatch):
+    monkeypatch.delenv("DEEPL_API_KEY", raising=False)
+    out = json.loads(tools.translate({"text": "Hello", "target_lang": "HU"}))
+    assert out["status"] == 0
+    assert "DEEPL_API_KEY" in out["error"]
+
+
+def test_translate_handler_bad_text(monkeypatch):
+    _set_key(monkeypatch)
+    out = json.loads(tools.translate({"text": 123, "target_lang": "HU"}))
+    assert out["status"] == 0
+    assert "text" in out["error"]
+
+
+def test_translate_handler_maps_quota_error(monkeypatch):
+    _set_key(monkeypatch)
+
+    def boom(**kw):
+        raise deepl_client.DeepLError(456, "quota")
+
+    monkeypatch.setattr(deepl_client, "translate", boom)
+    out = json.loads(tools.translate({"text": "Hello", "target_lang": "HU"}))
+    assert out["status"] == 456
+    assert "quota" in out["error"].lower()
+
+
+def test_usage_handler(monkeypatch):
+    _set_key(monkeypatch)
+    monkeypatch.setattr(
+        deepl_client, "usage",
+        lambda **kw: {"character_count": 250000, "character_limit": 500000},
+    )
+    out = json.loads(tools.deepl_usage({}))
+    assert out["character_count"] == 250000
+    assert out["percent_used"] == 50.0
